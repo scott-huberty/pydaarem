@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pydaarem"
+version = "0.1.0"
+description = "Python interpretation of DAAREM fixed-point acceleration"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.23",
+]
+authors = [
+    { name = "pydaarem contributors" },
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Mathematics",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+    "rpy2",
+    "scipy",
+]
+
+[tool.setuptools]
+packages = ["pydaarem"]
+package-dir = { pydaarem = "." }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
