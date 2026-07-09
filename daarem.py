@@ -39,12 +39,16 @@ def daarem(par, fixptfn, objfn=None, *args, control=None, **kwargs):
         parameter vector as its first argument and return a vector with the
         same length. It defines the iteration ``x[k + 1] = G(x[k])``. For an
         EM algorithm, this function performs one E/M update.
-    objfn : callable, optional
+    objfn : callable or None, optional
         Scalar merit function ``L`` that is maximized at the fixed point of
         ``G``. The callable must accept the parameter vector as its first
         argument and return a scalar. For an EM algorithm, this is typically
         the observed-data log-likelihood. Supplying ``objfn`` is optional but
-        preferable because it enables monotonicity control.
+        preferable because it enables monotonicity control. If ``None`` is
+        passed, DAAREM uses the residual-norm acceptance rule from the R
+        implementation's no-objective path; ``value.objfn``, ``objfevals``,
+        and ``objfn.track`` are returned as ``None``, and ``residuals``
+        contains the recorded residual norms.
     *args
         Additional positional arguments passed to both ``fixptfn`` and
         ``objfn``.
