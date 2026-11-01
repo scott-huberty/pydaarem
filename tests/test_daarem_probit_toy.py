@@ -5,25 +5,11 @@ import warnings
 import numpy as np
 import pytest
 from numpy.testing import assert_allclose
+from pydaarem import daarem
+from pydaarem.daarem import _CONTROL_DEFAULTS
 from rpy2 import robjects
 from rpy2.robjects import numpy2ri
 from scipy import special
-
-from pydaarem import daarem
-from pydaarem.daarem import _CONTROL_DEFAULTS
-
-
-R_ROOT = "/Users/scotterik/devel/projects/amica-python"
-R_FILES = [
-    "DampingFind.R",
-    "InvMillsRatio.R",
-    "ProbitSimulate.R",
-    "ProbitUpdate.R",
-    "ProbitLogLik.R",
-    "daarem_base_objfn.R",
-    "daarem_base_noobjfn.R",
-    "daarem.R",
-]
 
 
 def inv_mills_ratio(x, lt):
@@ -51,12 +37,11 @@ def probit_loglik(beta_hat, X, y):
 
 
 @functools.cache
-def source_r():
-    """Source the R daarem implementation into R's global environment once."""
-    for name in R_FILES:
-        robjects.r["source"](f"{R_ROOT}/optimizers/daarem/R/{name}")
+def load_r():
+    """Attach the R daarem package and define the R test helpers once."""
     robjects.r(
         """
+        library(daarem)
         run_daarem <- function(par, X, y, control, use_objfn) {
           suppressWarnings(
             if (use_objfn) {
@@ -81,7 +66,7 @@ def source_r():
 @functools.cache
 def probit_data(n=200, npars=5, seed=1):
     """Simulate probit data in R, returning both the R and NumPy versions."""
-    source_r()
+    load_r()
     out = robjects.r(
         f"""
         set.seed({seed})
@@ -112,7 +97,7 @@ def _r_value(name, value):
 
 def run_r(data, control, use_objfn):
     """Run R's daarem on probit data, returning a dict shaped like pydaarem's."""
-    source_r()
+    load_r()
     r_control = robjects.r["list"](**control)
     beta_init = robjects.FloatVector(np.zeros(data["X"].shape[1]))
     res = robjects.globalenv["run_daarem"](
@@ -131,8 +116,7 @@ def run_py(data, control, use_objfn):
             beta_init, probit_update, objfn, data["X"], data["y"], control=control
         )
     warned = any(
-        issubclass(w.category, RuntimeWarning)
-        and "did not converge" in str(w.message)
+        issubclass(w.category, RuntimeWarning) and "did not converge" in str(w.message)
         for w in caught
     )
     return got, warned
@@ -156,7 +140,9 @@ def assert_daarem_equal(got, ref, rtol=1e-9, atol=1e-10):
 BOTH = (True, False)
 TIGHT = {"rtol": 1e-9, "atol": 1e-10}
 # For runs that amplify rounding error. Counts and flags still match exactly.
-LOOSE = {"rtol": 1e-6, "atol": 1e-8}
+# The final residual norms are near tol=1e-8 and are rounding noise, so atol is
+# 10 * tol to make the comparison independent of the BLAS build.
+LOOSE = {"rtol": 1e-6, "atol": 1e-7}
 BIG = {"n": 2000, "npars": 20, "seed": 2}
 # (id, probit_data kwargs, control, objfn paths to run, float tolerances)
 CASES = [
@@ -186,7 +172,6 @@ CASES = [
     ("noconv", {}, {"maxiter": 5}, BOTH, TIGHT),
     # With 10 nearly collinear lag columns the ridge solve amplifies rounding
     # error, so the iterates agree to ~1e-7 relative while all counts match.
-    # The final residual norms are ~tol, so compare those to tol absolutely.
     ("order10", BIG, {"order": 10}, BOTH, LOOSE),
     ("damping", {}, {"kappa": 10, "alpha": 1.5}, BOTH, TIGHT),
     ("resid-tol", {}, {"resid.tol": 0.3}, (False,), TIGHT),
@@ -215,7 +200,7 @@ def test_daarem_matches_r(data_kwargs, control, use_objfn, tols):
 
 
 def test_signature_matches_r():
-    source_r()
+    load_r()
     r_formals = list(robjects.r("names(formals(daarem))"))
 
     params = list(inspect.signature(daarem).parameters.values())
@@ -246,7 +231,7 @@ def test_signature_matches_r():
 
 
 def test_control_defaults_match_r():
-    source_r()
+    load_r()
     r_defaults = robjects.globalenv["find_control_defaults"]()
     r_dict = {name: r_defaults.rx2(name)[0] for name in r_defaults.names}
 

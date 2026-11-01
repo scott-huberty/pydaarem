@@ -26,16 +26,47 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Mathematics",
 ]
 
-[project.optional-dependencies]
-test = [
-    "pytest",
-    "rpy2",
-    "scipy",
-]
-
 [tool.setuptools]
 packages = ["pydaarem"]
 package-dir = { pydaarem = "." }
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+
+[tool.numpydoc_validation]
+checks = ["all", "ES01", "SA01"]
+exclude = ['\._']
+
+[tool.pixi.workspace]
+channels = ["conda-forge"]
+platforms = ["linux-64", "osx-64", "osx-arm64", "win-64"]
+
+[tool.pixi.dependencies]
+python = ">=3.10"
+numpy = ">=1.23"
+
+[tool.pixi.pypi-dependencies]
+pydaarem = { path = ".", editable = true }
+
+[tool.pixi.feature.test.dependencies]
+pytest = "*"
+scipy = "*"
+rpy2 = "*"
+r-base = "*"
+
+[tool.pixi.feature.test.tasks]
+install-r-daarem = "Rscript tests/install_r_deps.R"
+test = { cmd = "pytest", depends-on = ["install-r-daarem"] }
+
+[tool.pixi.feature.lint.dependencies]
+pre-commit = "*"
+
+[tool.pixi.feature.lint.tasks]
+lint = "pre-commit run --all-files"
+
+[tool.pixi.environments]
+default = ["test"]
+lint = { features = ["lint"], no-default-feature = true }
