@@ -4971,7 +4971,7 @@ packages:
 - pypi: ./
   name: pydaarem
   version: 0.1.0
-  sha256: 4305b1dfb694244f3131860f52244b57872ef054d741849f55b0a93a2d3cd995
+  sha256: 0feb2d4b473cd408498cebea8b70e141c27f74e03197b193e14008ec50c4fe04
   requires_dist:
   - numpy>=1.23
   requires_python: '>=3.10'

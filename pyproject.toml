@@ -57,6 +57,12 @@ scipy = "*"
 rpy2 = "*"
 r-base = "*"
 
+# On Windows, embedded R loads its DLLs through PATH. Put this environment's R
+# first, so that the runner's system R is not used.
+[tool.pixi.feature.test.target.win-64.activation.env]
+R_HOME = "%CONDA_PREFIX%\\Lib\\R"
+PATH = "%CONDA_PREFIX%\\Lib\\R\\bin\\x64;%PATH%"
+
 [tool.pixi.feature.test.tasks]
 install-r-daarem = "Rscript tests/install_r_deps.R"
 test = { cmd = "pytest", depends-on = ["install-r-daarem"] }
