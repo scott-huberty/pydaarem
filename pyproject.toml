@@ -26,6 +26,12 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Mathematics",
 ]
 
+[project.optional-dependencies]
+datasets = [
+    "pooch>=1.8",
+    "rdata>=0.11",
+]
+
 [tool.setuptools]
 packages = ["pydaarem"]
 package-dir = { pydaarem = "." }
@@ -67,6 +73,20 @@ PATH = "%CONDA_PREFIX%\\Lib\\R\\bin\\x64;%PATH%"
 install-r-daarem = "Rscript tests/install_r_deps.R"
 test = { cmd = "pytest", depends-on = ["install-r-daarem"] }
 
+[tool.pixi.feature.datasets.dependencies]
+pooch = ">=1.8"
+rdata = ">=0.11"
+
+[tool.pixi.feature.docs.dependencies]
+sphinx = "*"
+furo = "*"
+sphinx-gallery = "*"
+numpydoc = "*"
+matplotlib-base = "*"
+
+[tool.pixi.feature.docs.tasks]
+docs = "sphinx-build -W --keep-going -b html docs docs/_build/html"
+
 [tool.pixi.feature.lint.dependencies]
 pre-commit = "*"
 
@@ -74,5 +94,6 @@ pre-commit = "*"
 lint = "pre-commit run --all-files"
 
 [tool.pixi.environments]
-default = ["test"]
+default = ["test", "datasets"]
+docs = ["docs", "datasets"]
 lint = { features = ["lint"], no-default-feature = true }
