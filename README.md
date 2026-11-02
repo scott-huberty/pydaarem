@@ -2,6 +2,8 @@
 
 Python interpretation of DAAREM: damped Anderson acceleration with restarts and monotonicity control for fixed-point iterations.
 
+pydaarem supports the [Python array API standard](https://data-apis.org/array-api/latest/). It computes with the array library and on the device of the start value (for example NumPy, PyTorch or CuPy), in float64, and it returns arrays of that library.
+
 ## Install
 
 From the repository root:
