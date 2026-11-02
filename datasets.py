@@ -1,10 +1,14 @@
 """Download and load example data sets."""
 
 import numpy as np
-import pooch
-import rdata
 
-from ._data import BASE_URL, DATA_DIR_ENV, REGISTRY
+from ._data import BASE_URL, DATA_DIR_ENV, MISSING_EXTRA_MESSAGE, REGISTRY
+
+try:
+    import pooch
+    import rdata
+except ImportError as err:
+    raise ImportError(MISSING_EXTRA_MESSAGE.format(name=err.name)) from err
 
 _FETCHER = pooch.create(
     path=pooch.os_cache("pydaarem"),

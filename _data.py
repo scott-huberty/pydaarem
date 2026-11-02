@@ -16,3 +16,8 @@ REGISTRY = {
 }
 # Set this environment variable to store the downloaded files in another folder.
 DATA_DIR_ENV = "PYDAAREM_DATA_DIR"
+# Error message for an import of pydaarem.datasets without its dependencies.
+MISSING_EXTRA_MESSAGE = (
+    "pydaarem.datasets requires the package {name!r}. Install the dependencies "
+    "of the data sets with: pip install 'pydaarem[datasets]'"
+)
