@@ -28,7 +28,11 @@ This project uses [pixi](https://pixi.sh) to manage the Python and R environment
 pixi run test                                  # install R daarem from CRAN, then run pytest
 pixi run -e lint lint                          # run ruff and numpydoc on all files
 pixi run -e lint pre-commit install            # run the same checks before each commit
+pixi run -e docs docs                          # build the documentation in docs/_build/html
 ```
+
+The documentation contains the API reference and the examples in `examples/`.
+sphinx-gallery runs each example during the build.
 
 The parity tests compare pydaarem with the R `daarem` package, version 0.7.
 
