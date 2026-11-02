@@ -10,3 +10,6 @@ __pycache__/
 docs/_build/
 docs/auto_examples/
 docs/sg_execution_times.rst
+
+# coverage
+.coverage

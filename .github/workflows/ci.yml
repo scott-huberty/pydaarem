@@ -37,6 +37,10 @@ jobs:
           environments: default
           cache: true
       - run: pixi run test -rA
+      - name: coverage summary
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: pixi run coverage report --format=markdown >> "$GITHUB_STEP_SUMMARY"
 
   lint:
     runs-on: ubuntu-latest

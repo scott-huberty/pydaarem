@@ -25,7 +25,7 @@ The public controls mirror the R implementation: `maxiter`, `order`, `tol`, `mon
 This project uses [pixi](https://pixi.sh) to manage the Python and R environments.
 
 ```bash
-pixi run test                                  # install R daarem from CRAN, then run pytest
+pixi run test                                  # install R daarem from CRAN, then run pytest with coverage
 pixi run -e lint lint                          # run ruff and numpydoc on all files
 pixi run -e lint pre-commit install            # run the same checks before each commit
 pixi run -e docs docs                          # build the documentation in docs/_build/html
