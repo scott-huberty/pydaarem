@@ -77,7 +77,7 @@ def r_mixdaarem_reference(numiter=200, order=10):
             "convergence": bool(ref.rx2("convergence")[0]),
         }
 
-pytest.mark.xfail(reason="Divergence between python and R version")
+@pytest.mark.xfail(reason="Divergence between python and R version")
 def test_daarem_matches_r_mixdata_example():
     L = load_mixdata()
     e = 1e-15 * np.max(L, axis=1)
