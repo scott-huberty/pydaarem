@@ -6,8 +6,9 @@ import numpy as np
 import pytest
 from numpy.testing import assert_allclose
 from pydaarem import daarem
-from pydaarem.daarem import _CONTROL_DEFAULTS
+from pydaarem.daarem import _CONTROL_DEFAULTS, _damping_find
 from rpy2 import robjects
+from rpy2.rinterface_lib.embedded import RRuntimeError
 from rpy2.robjects import numpy2ri
 from scipy import special
 
@@ -42,12 +43,29 @@ def load_r():
     robjects.r(
         """
         library(daarem)
-        run_daarem <- function(par, X, y, control, use_objfn) {
+        fail_on_call <- function(f, fail_at, mode) {
+          force(f)
+          n <- 0
+          function(...) {
+            n <<- n + 1
+            if (n == fail_at) {
+              if (mode == "error") stop("injected failure")
+              return(NaN)
+            }
+            f(...)
+          }
+        }
+        run_daarem <- function(par, X, y, control, use_objfn, fail_fn, fail_at,
+                               fail_mode) {
+          fixptfn <- ProbitUpdate
+          objfn <- ProbitLogLik
+          if (fail_fn == "fixptfn") fixptfn <- fail_on_call(fixptfn, fail_at, fail_mode)
+          if (fail_fn == "objfn") objfn <- fail_on_call(objfn, fail_at, fail_mode)
           suppressWarnings(
             if (use_objfn) {
-              daarem(par, ProbitUpdate, ProbitLogLik, X=X, y=y, control=control)
+              daarem(par, fixptfn, objfn, X=X, y=y, control=control)
             } else {
-              daarem(par, ProbitUpdate, X=X, y=y, control=control)
+              daarem(par, fixptfn, X=X, y=y, control=control)
             })
         }
         find_control_defaults <- function() {
@@ -95,25 +113,55 @@ def _r_value(name, value):
         return np.asarray(value, dtype=float)
 
 
-def run_r(data, control, use_objfn):
-    """Run R's daarem on probit data, returning a dict shaped like pydaarem's."""
+def run_r(data, control, use_objfn, fail=("", 0, "")):
+    """Run R's daarem on probit data, returning a dict shaped like pydaarem's.
+
+    ``fail`` is ``(function name, call number, "error" or "nan")``. On that
+    call, the named function stops with an error or returns NaN.
+    """
     load_r()
     r_control = robjects.r["list"](**control)
     beta_init = robjects.FloatVector(np.zeros(data["X"].shape[1]))
     res = robjects.globalenv["run_daarem"](
-        beta_init, data["X_r"], data["y_r"], r_control, use_objfn
+        beta_init, data["X_r"], data["y_r"], r_control, use_objfn, *fail
     )
     return {name: _r_value(name, res.rx2(name)) for name in res.names}
 
 
-def run_py(data, control, use_objfn):
+def fail_on_call(f, fail_at, mode):
+    """Make ``f`` raise an error or return NaN on call number ``fail_at``."""
+    calls = 0
+
+    def wrapped(*args):
+        nonlocal calls
+        calls += 1
+        if calls == fail_at:
+            if mode == "error":
+                raise RuntimeError("injected failure")
+            return np.nan
+        return f(*args)
+
+    return wrapped
+
+
+def run_py(data, control, use_objfn, fail=("", 0, "")):
     """Run pydaarem on probit data, also reporting whether it warned."""
+    fail_fn, fail_at, fail_mode = fail
+    fixptfn, objfn = probit_update, probit_loglik
+    if fail_fn == "fixptfn":
+        fixptfn = fail_on_call(fixptfn, fail_at, fail_mode)
+    if fail_fn == "objfn":
+        objfn = fail_on_call(objfn, fail_at, fail_mode)
     beta_init = np.zeros(data["X"].shape[1])
-    objfn = probit_loglik if use_objfn else None
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         got = daarem(
-            beta_init, probit_update, objfn, data["X"], data["y"], control=control
+            beta_init,
+            fixptfn,
+            objfn if use_objfn else None,
+            data["X"],
+            data["y"],
+            control=control,
         )
     warned = any(
         issubclass(w.category, RuntimeWarning) and "did not converge" in str(w.message)
@@ -206,6 +254,76 @@ def test_daarem_matches_r(data_kwargs, control, use_objfn, tols):
 
     assert_daarem_equal(got, ref, **tols)
     assert warned == (not ref["convergence"])
+
+
+# A function in a try block on that call: the objfn path calls fixptfn once per
+# iteration in a try block. Calls 1 and 2 of objfn and of the no-objfn fixptfn
+# are the start values, and call 3 is the first proposal, in a try block.
+# (id, objfn path, failure)
+FAILURES = [
+    ("fixptfn-error", True, ("fixptfn", 10, "error")),
+    ("objfn-error", True, ("objfn", 3, "error")),
+    ("objfn-nan", True, ("objfn", 3, "nan")),
+    ("fixptfn-error-noobjfn", False, ("fixptfn", 3, "error")),
+]
+
+
+@pytest.mark.parametrize(
+    "use_objfn, fail", [f[1:] for f in FAILURES], ids=[f[0] for f in FAILURES]
+)
+def test_daarem_failure_matches_r(use_objfn, fail):
+    data = probit_data()
+    control = {"maxiter": 80, "intermed": True}
+    ref = run_r(data, control, use_objfn, fail)
+    got, warned = run_py(data, control, use_objfn, fail)
+
+    assert_daarem_equal(got, ref, **TIGHT)
+    assert warned == (not ref["convergence"])
+
+
+def test_invalid_convtype_raises_like_r():
+    data = probit_data()
+    control = {"convtype": "other"}
+    with pytest.raises(RRuntimeError):
+        run_r(data, control, True)
+    with pytest.raises(ValueError, match="convtype"):
+        run_py(data, control, True)
+
+
+UY_SQ = [1.0, 0.5, 0.2]
+DVEC = [3.0, 1.0, 0.1]
+# (id, uy_sq, dvec, lambda.start, r.start)
+DAMPING = [
+    ("typical", UY_SQ, DVEC, 1e5, 0.0),
+    ("restart", UY_SQ, DVEC, 2.0, 0.5),
+    ("nan-start", UY_SQ, DVEC, np.nan, np.nan),
+    ("zero-singular-value", UY_SQ, [3.0, 1.0, 0.0], 1e5, 0.0),
+    ("zero-target", [0.0, 0.0, 0.0], DVEC, 1e5, 0.0),
+]
+
+
+@pytest.mark.parametrize(
+    "uy_sq, dvec, lambda_start, r_start",
+    [d[1:] for d in DAMPING],
+    ids=[d[0] for d in DAMPING],
+)
+@pytest.mark.parametrize("sk", [0, 10])
+def test_damping_find_matches_r(uy_sq, dvec, lambda_start, r_start, sk):
+    load_r()
+    uy_sq, dvec = np.array(uy_sq), np.array(dvec)
+    ftf = float(np.sqrt(np.sum(uy_sq * dvec**2)))
+    args = (uy_sq, dvec, 1.2, 25, sk, ftf)
+
+    ref = robjects.r("daarem:::DampingFind")(
+        *(robjects.FloatVector(a) for a in args[:2]),
+        *args[2:],
+        lambda_start=lambda_start,
+        r_start=r_start,
+    )
+    got = _damping_find(*args, lambda_start=lambda_start, r_start=r_start)
+
+    assert_allclose(got["lambda"], ref.rx2("lambda")[0], rtol=1e-12)
+    assert_allclose(got["rr"], ref.rx2("rr")[0], rtol=1e-12, atol=1e-300)
 
 
 def test_signature_matches_r():

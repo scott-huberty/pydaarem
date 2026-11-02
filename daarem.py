@@ -126,7 +126,9 @@ def daarem(par, fixptfn, objfn=None, *args, control=None, **kwargs):
     Notes
     -----
     The public API and control names follow the R package ``daarem``. Unknown
-    control names raise ``ValueError``.
+    control names and a ``convtype`` other than ``"param"`` or ``"objfn"``
+    raise ``ValueError``. The R package also stops with an error in these
+    cases.
 
     References
     ----------
@@ -156,12 +158,9 @@ def daarem(par, fixptfn, objfn=None, *args, control=None, **kwargs):
     num_params = len(par)
     nlag = min(int(opts["order"]), int(np.ceil(num_params / 2)))
 
-    if opts["convtype"] == "param":
-        check_par_resid = True
-    elif opts["convtype"] == "objfn":
-        check_par_resid = False
-    else:
-        check_par_resid = False
+    if opts["convtype"] not in ("param", "objfn"):
+        raise ValueError(f"convtype must be 'param' or 'objfn': {opts['convtype']!r}")
+    check_par_resid = opts["convtype"] == "param"
 
     if objfn is None:
         ans = _daarem_base_noobjfn(

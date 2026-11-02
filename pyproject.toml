@@ -39,6 +39,14 @@ package-dir = { pydaarem = "." }
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
+[tool.coverage.run]
+source = ["pydaarem"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 95
+show_missing = true
+
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B"]
 
@@ -62,6 +70,7 @@ pytest = "*"
 scipy = "*"
 rpy2 = "*"
 r-base = "*"
+pytest-cov = ">=7.1.0,<8"
 
 # On Windows, embedded R loads its DLLs through PATH. Put this environment's R
 # first, so that the runner's system R is not used.
@@ -71,7 +80,7 @@ PATH = "%CONDA_PREFIX%\\Lib\\R\\bin\\x64;%PATH%"
 
 [tool.pixi.feature.test.tasks]
 install-r-daarem = "Rscript tests/install_r_deps.R"
-test = { cmd = "pytest", depends-on = ["install-r-daarem"] }
+test = { cmd = "pytest --cov --cov-report=term-missing", depends-on = ["install-r-daarem"] }
 
 [tool.pixi.feature.datasets.dependencies]
 pooch = ">=1.8"
