@@ -2,8 +2,11 @@ import functools
 import inspect
 import warnings
 
+import array_api_strict
 import numpy as np
 import pytest
+import torch
+from array_api_compat import array_namespace, device
 from numpy.testing import assert_allclose
 from pydaarem import daarem
 from pydaarem.daarem import _CONTROL_DEFAULTS, _damping_find
@@ -144,15 +147,60 @@ def fail_on_call(f, fail_at, mode):
     return wrapped
 
 
-def run_py(data, control, use_objfn, fail=("", 0, "")):
-    """Run pydaarem on probit data, also reporting whether it warned."""
+# The array namespaces that the parity tests run on.
+BACKENDS = {"numpy": np, "array_api_strict": array_api_strict, "torch": torch}
+
+
+def on_backend(f, xp):
+    """Make a NumPy function take and return arrays of namespace ``xp``.
+
+    The probit functions are test code, so they compute in NumPy and convert
+    at the boundary.
+    """
+
+    def wrapped(beta, *args):
+        out = f(np.from_dlpack(beta), *args)
+        return xp.asarray(out) if isinstance(out, np.ndarray) else out
+
+    return wrapped
+
+
+def to_numpy(got, like):
+    """Check that the arrays in ``got`` match ``like``, and convert them.
+
+    Each array must have the namespace and the device of ``like``, and the
+    float64 data type.
+    """
+    xp = array_namespace(like)
+    converted = {}
+    for name, value in got.items():
+        if (
+            name in ("par", "objfn.track", "residuals", "p.intermed")
+            and value is not None
+        ):
+            assert array_namespace(value) is xp, name
+            assert device(value) == device(like), name
+            assert value.dtype == xp.float64, name
+            value = np.from_dlpack(value)
+        converted[name] = value
+    return converted
+
+
+def run_py(data, control, use_objfn, fail=("", 0, ""), backend="numpy"):
+    """Run pydaarem on probit data, also reporting whether it warned.
+
+    The start value is an array of ``backend``. The returned results are
+    NumPy arrays, after a check of their namespace, device and data type.
+    """
+    xp = BACKENDS[backend]
     fail_fn, fail_at, fail_mode = fail
-    fixptfn, objfn = probit_update, probit_loglik
+    fixptfn = on_backend(probit_update, xp)
+    objfn = on_backend(probit_loglik, xp)
     if fail_fn == "fixptfn":
         fixptfn = fail_on_call(fixptfn, fail_at, fail_mode)
     if fail_fn == "objfn":
         objfn = fail_on_call(objfn, fail_at, fail_mode)
-    beta_init = np.zeros(data["X"].shape[1])
+    beta_init = xp.asarray(np.zeros(data["X"].shape[1]))
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         got = daarem(
@@ -167,7 +215,7 @@ def run_py(data, control, use_objfn, fail=("", 0, "")):
         issubclass(w.category, RuntimeWarning) and "did not converge" in str(w.message)
         for w in caught
     )
-    return got, warned
+    return to_numpy(got, like=beta_init), warned
 
 
 def assert_daarem_equal(got, ref, rtol=1e-9, atol=1e-10):
@@ -246,11 +294,12 @@ PARAMS = [
 ]
 
 
+@pytest.mark.parametrize("backend", BACKENDS)
 @pytest.mark.parametrize("data_kwargs, control, use_objfn, tols", PARAMS)
-def test_daarem_matches_r(data_kwargs, control, use_objfn, tols):
+def test_daarem_matches_r(data_kwargs, control, use_objfn, tols, backend):
     data = probit_data(**data_kwargs)
     ref = run_r(data, control, use_objfn)
-    got, warned = run_py(data, control, use_objfn)
+    got, warned = run_py(data, control, use_objfn, backend=backend)
 
     assert_daarem_equal(got, ref, **tols)
     assert warned == (not ref["convergence"])
@@ -271,11 +320,12 @@ FAILURES = [
 @pytest.mark.parametrize(
     "use_objfn, fail", [f[1:] for f in FAILURES], ids=[f[0] for f in FAILURES]
 )
-def test_daarem_failure_matches_r(use_objfn, fail):
+@pytest.mark.parametrize("backend", BACKENDS)
+def test_daarem_failure_matches_r(use_objfn, fail, backend):
     data = probit_data()
     control = {"maxiter": 80, "intermed": True}
     ref = run_r(data, control, use_objfn, fail)
-    got, warned = run_py(data, control, use_objfn, fail)
+    got, warned = run_py(data, control, use_objfn, fail, backend=backend)
 
     assert_daarem_equal(got, ref, **TIGHT)
     assert warned == (not ref["convergence"])
@@ -308,19 +358,32 @@ DAMPING = [
     ids=[d[0] for d in DAMPING],
 )
 @pytest.mark.parametrize("sk", [0, 10])
-def test_damping_find_matches_r(uy_sq, dvec, lambda_start, r_start, sk):
+@pytest.mark.parametrize("backend", BACKENDS)
+def test_damping_find_matches_r(uy_sq, dvec, lambda_start, r_start, sk, backend):
     load_r()
-    uy_sq, dvec = np.array(uy_sq), np.array(dvec)
-    ftf = float(np.sqrt(np.sum(uy_sq * dvec**2)))
-    args = (uy_sq, dvec, 1.2, 25, sk, ftf)
+    xp = BACKENDS[backend]
+    ftf = float(np.sqrt(np.sum(np.array(uy_sq) * np.array(dvec) ** 2)))
 
     ref = robjects.r("daarem:::DampingFind")(
-        *(robjects.FloatVector(a) for a in args[:2]),
-        *args[2:],
+        robjects.FloatVector(uy_sq),
+        robjects.FloatVector(dvec),
+        1.2,
+        25,
+        sk,
+        ftf,
         lambda_start=lambda_start,
         r_start=r_start,
     )
-    got = _damping_find(*args, lambda_start=lambda_start, r_start=r_start)
+    got = _damping_find(
+        xp.asarray(uy_sq, dtype=xp.float64),
+        xp.asarray(dvec, dtype=xp.float64),
+        1.2,
+        25,
+        sk,
+        ftf,
+        lambda_start=lambda_start,
+        r_start=r_start,
+    )
 
     assert_allclose(got["lambda"], ref.rx2("lambda")[0], rtol=1e-12)
     assert_allclose(got["rr"], ref.rx2("rr")[0], rtol=1e-12, atol=1e-300)
@@ -373,6 +436,13 @@ def test_return_keys_match_r(use_objfn):
     ref = run_r(data, {"maxiter": 5}, use_objfn)
     got, _ = run_py(data, {"maxiter": 5}, use_objfn)
     assert list(got) == list(ref)
+
+
+def test_list_start_value_gives_numpy_arrays():
+    data = probit_data()
+    got = daarem([0.0] * data["X"].shape[1], probit_update, None, data["X"], data["y"])
+    assert isinstance(got["par"], np.ndarray)
+    assert got["par"].dtype == np.float64
 
 
 def test_unknown_control_raises():

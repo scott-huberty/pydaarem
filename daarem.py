@@ -5,7 +5,8 @@ from __future__ import annotations
 import math
 import warnings
 
-import numpy as np
+import array_api_compat
+from array_api_compat import array_namespace, device
 
 _CONTROL_DEFAULTS = {
     "maxiter": 2000,
@@ -32,8 +33,12 @@ def daarem(par, fixptfn, objfn=None, *args, control=None, **kwargs):
 
     Parameters
     ----------
-    par : array_like, shape (n_parameters,)
-        Starting values for the parameter vector.
+    par : array, shape (n_parameters,)
+        Starting values for the parameter vector. ``par`` can be an array of
+        any library that supports the Python array API standard, for example
+        NumPy, PyTorch or CuPy. A list or a scalar is converted to a NumPy
+        array. The computation uses the namespace and the device of ``par``,
+        with the float64 data type.
     fixptfn : callable
         Fixed-point mapping ``G``. The callable must accept the current
         parameter vector as its first argument and return a vector with the
@@ -97,7 +102,7 @@ def daarem(par, fixptfn, objfn=None, *args, control=None, **kwargs):
     dict
         Dictionary with keys matching the R implementation.
 
-        ``par`` : ndarray
+        ``par`` : array
             Final parameter vector.
         ``fpevals`` : int
             Number of fixed-point function evaluations or iterations, following
@@ -110,14 +115,17 @@ def daarem(par, fixptfn, objfn=None, *args, control=None, **kwargs):
             objective function is supplied.
         ``convergence`` : bool
             True if the algorithm converged before reaching ``maxiter``.
-        ``objfn.track`` : ndarray or None
+        ``objfn.track`` : array or None
             Objective values recorded during iteration, or ``None`` when no
             objective function is supplied.
-        ``residuals`` : ndarray, optional
+        ``residuals`` : array, optional
             Residual norms recorded during iteration. Returned only when
             ``objfn`` is not supplied.
-        ``p.intermed`` : ndarray or None
+        ``p.intermed`` : array or None
             Intermediate iterates when ``intermed`` is true, otherwise ``None``.
+
+        The arrays have the namespace and the device of ``par``, and the
+        float64 data type.
 
     Warns
     -----
@@ -130,6 +138,17 @@ def daarem(par, fixptfn, objfn=None, *args, control=None, **kwargs):
     control names and a ``convtype`` other than ``"param"`` or ``"objfn"``
     raise ``ValueError``. The R package also stops with an error in these
     cases.
+
+    ``fixptfn`` receives and must return an array of the namespace of ``par``.
+    pydaarem converts its output to float64 on the device of ``par``.
+    ``objfn`` must return a value that ``float()`` accepts, for example a
+    Python float or a 0-dimensional array.
+
+    DAAREM decides each step from the values of the residual norm and the
+    objective. These values are converted to Python floats, so each iteration
+    copies a small number of scalars from the device to the host. For the same
+    reason, pydaarem does not support tracing transformations such as
+    ``jax.jit`` or ``torch.compile``.
 
     References
     ----------
@@ -155,9 +174,8 @@ def daarem(par, fixptfn, objfn=None, *args, control=None, **kwargs):
     opts = dict(_CONTROL_DEFAULTS)
     opts.update(control)
 
-    par = np.asarray(par, dtype=float).reshape(-1)
-    num_params = len(par)
-    nlag = min(int(opts["order"]), int(np.ceil(num_params / 2)))
+    par = _as_float64_vector(par, *_namespace(par))
+    nlag = min(int(opts["order"]), math.ceil(par.shape[0] / 2))
 
     if opts["convtype"] not in ("param", "objfn"):
         raise ValueError(f"convtype must be 'param' or 'objfn': {opts['convtype']!r}")
@@ -199,28 +217,56 @@ def daarem(par, fixptfn, objfn=None, *args, control=None, **kwargs):
     return ans
 
 
+def _stack_columns(vectors):
+    return array_namespace(vectors[0]).stack(vectors, axis=1)
+
+
+def _stack_rows(vectors):
+    return array_namespace(vectors[0]).stack(vectors, axis=0)
+
+
+def _namespace(par):
+    """Return the array namespace and device of ``par``.
+
+    Lists and scalars use NumPy on the CPU.
+    """
+    if array_api_compat.is_array_api_obj(par):
+        return array_namespace(par), device(par)
+    return array_api_compat.numpy, "cpu"
+
+
+def _as_float64_vector(x, xp, dev):
+    return xp.reshape(xp.asarray(x, dtype=xp.float64, device=dev), (-1,))
+
+
 def _call_vector(fn, x, args, kwargs):
-    return np.asarray(
-        fn(np.asarray(x, dtype=float), *args, **kwargs), dtype=float
-    ).reshape(-1)
+    """Call ``fn`` and convert its output to a float64 vector like ``x``."""
+    return _as_float64_vector(fn(x, *args, **kwargs), array_namespace(x), device(x))
 
 
 def _call_scalar(fn, x, args, kwargs):
-    return float(fn(np.asarray(x, dtype=float), *args, **kwargs))
+    return float(fn(x, *args, **kwargs))
 
 
 def _norm2(x):
-    return float(np.sqrt(np.dot(x, x)))
+    return math.sqrt(float(x @ x))
 
 
 def _with_value(value, x):
     """Put a scalar in front of a vector, as R does with ``c(value, x)``."""
-    return np.concatenate([np.asarray([value], dtype=float), x])
+    xp = array_namespace(x)
+    return xp.concat([xp.asarray([value], dtype=xp.float64, device=device(x)), x])
 
 
-def _drop_nan(values):
-    """Remove NaN values, as R does with ``x[!is.na(x)]``."""
-    return np.asarray([v for v in values if not math.isnan(v)], dtype=float)
+def _drop_nan(values, like):
+    """Remove NaN values, as R does with ``x[!is.na(x)]``.
+
+    The result is a float64 array in the namespace and on the device of
+    ``like``.
+    """
+    xp = array_namespace(like)
+    kept = [v for v in values if not math.isnan(v)]
+    return xp.asarray(kept, dtype=xp.float64, device=device(like))
 
 
 def _damping_find(
@@ -239,45 +285,45 @@ def _damping_find(
     if r_start is None or math.isnan(r_start):
         r_start = 0.0
 
-    uy_sq = np.asarray(uy_sq, dtype=float).reshape(-1)
-    dvec = np.asarray(dvec, dtype=float).reshape(-1)
+    xp = array_namespace(dvec)
     # R drops the components with a zero singular value. Set their terms to
     # zero instead, so that the array shapes do not depend on the data.
     nonzero = dvec > 0
+    zeros = xp.zeros_like(dvec)
     d_sq = dvec * dvec
-    d_sq_safe = np.where(nonzero, d_sq, 1.0)
+    d_sq_safe = xp.where(nonzero, d_sq, xp.ones_like(dvec))
 
     pow_ = kappa - sk
-    target = np.exp(-0.5 * np.log1p(aa**pow_))
-    betahat_ls = np.where(nonzero, uy_sq / d_sq_safe, 0.0)
-    betahat_ls_norm = float(np.sqrt(np.sum(betahat_ls)))
+    target = math.exp(-0.5 * math.log1p(aa**pow_))
+    betahat_ls = xp.where(nonzero, uy_sq / d_sq_safe, zeros)
+    betahat_ls_norm = math.sqrt(float(xp.sum(betahat_ls)))
     vk = target * betahat_ls_norm
 
     if vk == 0:
         return {"lambda": float(lambda_start), "rr": float(r_start)}
 
     lambda_ridge = lambda_start - r_start / vk
-    ll = (betahat_ls_norm * (betahat_ls_norm - vk)) / np.sum(
-        np.where(nonzero, uy_sq / (d_sq_safe * d_sq_safe), 0.0)
+    ll = (betahat_ls_norm * (betahat_ls_norm - vk)) / float(
+        xp.sum(xp.where(nonzero, uy_sq / (d_sq_safe * d_sq_safe), zeros))
     )
     uu = ftf / vk
 
     pow_low = pow_ + 0.5
     pow_up = pow_ - 0.5
-    l_stop = np.exp(-0.5 * np.log1p(aa**pow_low))
-    u_stop = np.exp(-0.5 * np.log1p(aa**pow_up))
+    l_stop = math.exp(-0.5 * math.log1p(aa**pow_low))
+    u_stop = math.exp(-0.5 * math.log1p(aa**pow_up))
     s_norm = 0.0
     phi_ratio = 0.0
 
     for _ in range(maxit):
         if lambda_ridge <= ll or lambda_ridge >= uu:
-            lambda_ridge = max(0.0001 * uu, np.sqrt(ll * uu))
+            lambda_ridge = max(0.0001 * uu, math.sqrt(ll * uu))
 
         d_lambda = (dvec / (d_sq + lambda_ridge)) ** 2
         d_prime = d_lambda / (d_sq + lambda_ridge)
-        s_norm = float(np.sqrt(np.sum(uy_sq * d_lambda)))
+        s_norm = math.sqrt(float(xp.sum(uy_sq * d_lambda)))
         phi_val = s_norm - vk
-        phi_der = -float(np.sum(uy_sq * d_prime)) / s_norm
+        phi_der = -float(xp.sum(uy_sq * d_prime)) / s_norm
         phi_ratio = phi_val / phi_der
 
         if s_norm <= u_stop * betahat_ls_norm and s_norm >= l_stop * betahat_ls_norm:
@@ -291,11 +337,12 @@ def _damping_find(
 
 
 def _anderson_step(Ftmp, Xtmp, fnew, a1, kappa, shrink_count, lambda_ridge, r_penalty):
-    u, dvec, vt = np.linalg.svd(Ftmp, full_matrices=False)
+    xp = array_namespace(Ftmp)
+    u, dvec, vt = xp.linalg.svd(Ftmp, full_matrices=False)
     dvec_sq = dvec * dvec
-    uy = u.T @ fnew
+    uy = u.mT @ fnew
     uy_sq = uy * uy
-    ftf = float(np.sqrt(np.sum(uy_sq * dvec_sq)))
+    ftf = math.sqrt(float(xp.sum(uy_sq * dvec_sq)))
     tmp_lam = _damping_find(
         uy_sq,
         dvec,
@@ -309,7 +356,7 @@ def _anderson_step(Ftmp, Xtmp, fnew, a1, kappa, shrink_count, lambda_ridge, r_pe
     lambda_ridge = tmp_lam["lambda"]
     r_penalty = tmp_lam["rr"]
     dd = (dvec * uy) / (dvec_sq + lambda_ridge)
-    gamma_vec = vt.T @ dd
+    gamma_vec = vt.mT @ dd
     xbar_delta = Xtmp @ gamma_vec
     fbar_delta = Ftmp @ gamma_vec
     return xbar_delta, fbar_delta, lambda_ridge, r_penalty
@@ -368,8 +415,8 @@ def _daarem_base_objfn(
         f_cols.append(fnew - fold)
         x_cols.append(xnew - xold)
         xbar_delta, fbar_delta, lambda_ridge, r_penalty = _anderson_step(
-            np.stack(f_cols, axis=1),
-            np.stack(x_cols, axis=1),
+            _stack_columns(f_cols),
+            _stack_columns(x_cols),
             fnew,
             a1,
             kappa,
@@ -443,8 +490,8 @@ def _daarem_base_objfn(
         "value.objfn": value_obj,
         "objfevals": obj_evals,
         "convergence": conv,
-        "objfn.track": _drop_nan(obj_funvals),
-        "p.intermed": None if p_inter is None else np.stack(p_inter),
+        "objfn.track": _drop_nan(obj_funvals, like=xnew),
+        "p.intermed": None if p_inter is None else _stack_rows(p_inter),
     }
 
 
@@ -486,8 +533,8 @@ def _daarem_base_noobjfn(
         f_cols.append(fnew - fold)
         x_cols.append(xnew - xold)
         xbar_delta, fbar_delta, lambda_ridge, r_penalty = _anderson_step(
-            np.stack(f_cols, axis=1),
-            np.stack(x_cols, axis=1),
+            _stack_columns(f_cols),
+            _stack_columns(x_cols),
             fnew,
             a1,
             kappa,
@@ -545,6 +592,6 @@ def _daarem_base_noobjfn(
         "objfevals": None,
         "convergence": conv,
         "objfn.track": None,
-        "residuals": _drop_nan(resid_vals),
-        "p.intermed": None if p_inter is None else np.stack(p_inter),
+        "residuals": _drop_nan(resid_vals, like=xnew),
+        "p.intermed": None if p_inter is None else _stack_rows(p_inter),
     }
