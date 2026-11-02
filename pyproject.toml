@@ -11,6 +11,7 @@ license = "GPL-2.0-only"
 license-files = ["LICENSE"]
 requires-python = ">=3.10"
 dependencies = [
+    "array-api-compat>=1.12",
     "numpy>=1.23",
 ]
 authors = [
@@ -61,6 +62,7 @@ platforms = ["linux-64", "osx-64", "osx-arm64", "win-64"]
 [tool.pixi.dependencies]
 python = ">=3.10"
 numpy = ">=1.23"
+array-api-compat = ">=1.12"
 
 [tool.pixi.pypi-dependencies]
 pydaarem = { path = ".", editable = true }
@@ -71,6 +73,8 @@ scipy = "*"
 rpy2 = "*"
 r-base = "*"
 pytest-cov = ">=7.1.0,<8"
+array-api-strict = ">=2.6.1,<3"
+pytorch = ">=2.5"
 
 # On Windows, embedded R loads its DLLs through PATH. Put this environment's R
 # first, so that the runner's system R is not used.
@@ -92,6 +96,7 @@ furo = "*"
 sphinx-gallery = "*"
 numpydoc = "*"
 matplotlib-base = "*"
+pytorch = ">=2.5"
 
 [tool.pixi.feature.docs.tasks]
 docs = "sphinx-build -W --keep-going -b html docs docs/_build/html"

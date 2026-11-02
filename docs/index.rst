@@ -10,6 +10,13 @@ epsilon-monotonicity (DAAREM).
 The public API and the control names are the same as in the R package. Tests
 compare the results of pydaarem with the results of the R package.
 
+pydaarem supports the
+`Python array API standard <https://data-apis.org/array-api/latest/>`_. It
+computes with the array library and on the device of the start value, for
+example NumPy, PyTorch or CuPy, and it returns arrays of that library. The
+computation uses the float64 data type. The tests compare NumPy and PyTorch
+results with the R package.
+
 Install
 -------
 
