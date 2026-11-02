@@ -140,9 +140,10 @@ def assert_daarem_equal(got, ref, rtol=1e-9, atol=1e-10):
 BOTH = (True, False)
 TIGHT = {"rtol": 1e-9, "atol": 1e-10}
 # For runs that amplify rounding error. Counts and flags still match exactly.
-# The final residual norms are near tol=1e-8 and are rounding noise, so atol is
-# 10 * tol to make the comparison independent of the BLAS build.
-LOOSE = {"rtol": 1e-6, "atol": 1e-7}
+# Across OpenBLAS kernels (OPENBLAS_CORETYPE) the largest relative difference in
+# these cases is 1.5e-6, so rtol has a margin of about 6. The final residual
+# norms are rounding noise near tol, so atol does not depend on the BLAS build.
+LOOSE = {"rtol": 1e-5, "atol": 1e-7}
 BIG = {"n": 2000, "npars": 20, "seed": 2}
 # (id, probit_data kwargs, control, objfn paths to run, float tolerances)
 CASES = [
@@ -172,7 +173,11 @@ CASES = [
     ("noconv", {}, {"maxiter": 5}, BOTH, TIGHT),
     # With 10 nearly collinear lag columns the ridge solve amplifies rounding
     # error, so the iterates agree to ~1e-7 relative while all counts match.
-    ("order10", BIG, {"order": 10}, BOTH, LOOSE),
+    # The no-objfn path checks tol only at the end of each cycle of 10. With
+    # tol=1e-8 the last residual is 9e-9, so the BLAS kernel decides whether
+    # one more cycle runs. With tol=1e-7 the last residual is 11 times smaller
+    # than tol and the residual one cycle earlier is 3 times larger.
+    ("order10", BIG, {"order": 10, "tol": 1e-7}, BOTH, LOOSE),
     ("damping", {}, {"kappa": 10, "alpha": 1.5}, BOTH, TIGHT),
     ("resid-tol", {}, {"resid.tol": 0.3}, (False,), TIGHT),
 ]

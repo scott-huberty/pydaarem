@@ -11,12 +11,23 @@ concurrency:
 
 jobs:
   test:
-    name: test (${{ matrix.os }})
+    name: test (${{ matrix.os }}${{ matrix.openblas-coretype && format(', {0}', matrix.openblas-coretype) || '' }})
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
+        openblas-coretype: [""]
+        # OpenBLAS selects its kernel from the runner CPU, and the kernel changes
+        # rounding. Pin two kernels that differ from the usual runner kernel, so
+        # that tests near a decision boundary fail on every run.
+        include:
+          - os: ubuntu-latest
+            openblas-coretype: SandyBridge
+          - os: ubuntu-latest
+            openblas-coretype: Prescott
     runs-on: ${{ matrix.os }}
+    env:
+      OPENBLAS_CORETYPE: ${{ matrix.openblas-coretype }}
     steps:
       - uses: actions/checkout@v7
       - uses: prefix-dev/setup-pixi@v0.11.3
