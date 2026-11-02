@@ -4,12 +4,18 @@ Python interpretation of DAAREM: damped Anderson acceleration with restarts and 
 
 pydaarem supports the [Python array API standard](https://data-apis.org/array-api/latest/). It computes with the array library and on the device of the start value (for example NumPy, PyTorch or CuPy), in float64, and it returns arrays of that library.
 
+Documentation: https://scott-huberty.github.io/pydaarem/
+
 ## Install
 
-From the repository root:
+```bash
+pip install pydaarem
+```
+
+The example data sets in `pydaarem.datasets` need two more packages. To install them too:
 
 ```bash
-python -m pip install -e ./pydaarem
+pip install "pydaarem[datasets]"
 ```
 
 ## Use
@@ -37,6 +43,18 @@ The documentation contains the API reference and the examples in `examples/`.
 sphinx-gallery runs each example during the build.
 
 The parity tests compare pydaarem with the R `daarem` package, version 0.7.
+
+## Release
+
+1. Set the new version in `pyproject.toml`, and merge that change into `main`.
+2. Tag the merge commit with the version and push the tag:
+
+   ```bash
+   git tag v0.1.0
+   git push origin v0.1.0
+   ```
+
+The `Release` workflow builds the sdist and the wheel, checks that the tag matches the version, and publishes both on PyPI.
 
 ## License
 
