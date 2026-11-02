@@ -140,9 +140,9 @@ def assert_daarem_equal(got, ref, rtol=1e-9, atol=1e-10):
 BOTH = (True, False)
 TIGHT = {"rtol": 1e-9, "atol": 1e-10}
 # For runs that amplify rounding error. Counts and flags still match exactly.
-# The final residual norms are near tol=1e-8 and are rounding noise, so atol is
-# 10 * tol to make the comparison independent of the BLAS build.
-LOOSE = {"rtol": 1e-6, "atol": 1e-7}
+# Across OpenBLAS kernels (OPENBLAS_CORETYPE) the largest relative difference in
+# these cases is 2e-7, so rtol has a margin of 50.
+LOOSE = {"rtol": 1e-5, "atol": 1e-10}
 BIG = {"n": 2000, "npars": 20, "seed": 2}
 # (id, probit_data kwargs, control, objfn paths to run, float tolerances)
 CASES = [
@@ -170,9 +170,18 @@ CASES = [
         LOOSE,
     ),
     ("noconv", {}, {"maxiter": 5}, BOTH, TIGHT),
-    # With 10 nearly collinear lag columns the ridge solve amplifies rounding
-    # error, so the iterates agree to ~1e-7 relative while all counts match.
-    ("order10", BIG, {"order": 10}, BOTH, LOOSE),
+    # Covers nlag above 3. As the iterates converge, the lag columns align and
+    # the Anderson least-squares problem becomes ill-conditioned (condition
+    # number 1e8 for order 10 on BIG), so rounding decides discrete steps.
+    # In 30 fixed-point evaluations the condition number stays below 5e4 and
+    # the history is full (8 columns) for 3 cycles.
+    (
+        "order8",
+        {"n": 200, "npars": 16, "seed": 2},
+        {"order": 8, "maxiter": 30, "intermed": True},
+        BOTH,
+        LOOSE,
+    ),
     ("damping", {}, {"kappa": 10, "alpha": 1.5}, BOTH, TIGHT),
     ("resid-tol", {}, {"resid.tol": 0.3}, (False,), TIGHT),
 ]
