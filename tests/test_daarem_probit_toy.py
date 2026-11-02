@@ -103,6 +103,16 @@ def probit_data(n=200, npars=5, seed=1):
     return {"X_r": out.rx2("X"), "y_r": out.rx2("y"), "X": X, "y": y}
 
 
+def py_name(name):
+    """Return the pydaarem name of an R control or result name."""
+    return name.replace(".", "_")
+
+
+def r_name(name):
+    """Return the R name of a pydaarem control name."""
+    return name.replace("_", ".")
+
+
 def _r_value(name, value):
     if value is robjects.NULL:
         return None
@@ -110,7 +120,7 @@ def _r_value(name, value):
         return int(value[0])
     if name == "convergence":
         return bool(value[0])
-    if name == "value.objfn":
+    if name == "value_objfn":
         return float(value[0])
     with (robjects.default_converter + numpy2ri.converter).context():
         return np.asarray(value, dtype=float)
@@ -123,12 +133,14 @@ def run_r(data, control, use_objfn, fail=("", 0, "")):
     call, the named function stops with an error or returns NaN.
     """
     load_r()
-    r_control = robjects.r["list"](**control)
+    r_control = robjects.r["list"](
+        **{r_name(name): value for name, value in control.items()}
+    )
     beta_init = robjects.FloatVector(np.zeros(data["X"].shape[1]))
     res = robjects.globalenv["run_daarem"](
         beta_init, data["X_r"], data["y_r"], r_control, use_objfn, *fail
     )
-    return {name: _r_value(name, res.rx2(name)) for name in res.names}
+    return {py_name(name): _r_value(py_name(name), res.rx2(name)) for name in res.names}
 
 
 def fail_on_call(f, fail_at, mode):
@@ -175,7 +187,7 @@ def to_numpy(got, like):
     converted = {}
     for name, value in got.items():
         if (
-            name in ("par", "objfn.track", "residuals", "p.intermed")
+            name in ("par", "objfn_track", "residuals", "p_intermed")
             and value is not None
         ):
             assert array_namespace(value) is xp, name
@@ -247,21 +259,21 @@ CASES = [
     ("convtype-objfn", {}, {"convtype": "objfn", "tol": 1e-10}, (True,), TIGHT),
     ("intermed", {}, {"intermed": True}, BOTH, TIGHT),
     ("intermed-noconv", {}, {"intermed": True, "maxiter": 5}, BOTH, TIGHT),
-    # A loose mon.tol accepts objective decreases, so the cycle-level check
+    # A loose mon_tol accepts objective decreases, so the cycle-level check
     # decreases shrink.count (first changing the path at iteration 17); a huge
-    # cycl.mon.tol suppresses that. Non-monotone runs amplify rounding error,
+    # cycl_mon_tol suppresses that. Non-monotone runs amplify rounding error,
     # so stop at 22 iterations, before R and Python drift apart.
     (
         "cycl-decrease",
         BIG,
-        {"mon.tol": 100.0, "maxiter": 22, "intermed": True},
+        {"mon_tol": 100.0, "maxiter": 22, "intermed": True},
         (True,),
         LOOSE,
     ),
     (
         "cycl-mon-tol",
         BIG,
-        {"mon.tol": 100.0, "cycl.mon.tol": 1e6, "maxiter": 22, "intermed": True},
+        {"mon_tol": 100.0, "cycl_mon_tol": 1e6, "maxiter": 22, "intermed": True},
         (True,),
         LOOSE,
     ),
@@ -279,7 +291,7 @@ CASES = [
         LOOSE,
     ),
     ("damping", {}, {"kappa": 10, "alpha": 1.5}, BOTH, TIGHT),
-    ("resid-tol", {}, {"resid.tol": 0.3}, (False,), TIGHT),
+    ("resid-tol", {}, {"resid_tol": 0.3}, (False,), TIGHT),
 ]
 PARAMS = [
     pytest.param(
@@ -423,7 +435,7 @@ def test_signature_matches_r():
 def test_control_defaults_match_r():
     load_r()
     r_defaults = robjects.globalenv["find_control_defaults"]()
-    r_dict = {name: r_defaults.rx2(name)[0] for name in r_defaults.names}
+    r_dict = {py_name(name): r_defaults.rx2(name)[0] for name in r_defaults.names}
 
     assert list(_CONTROL_DEFAULTS) == list(r_dict)
     for name, value in r_dict.items():

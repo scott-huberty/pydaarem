@@ -20,7 +20,7 @@ from pydaarem import daarem
 result = daarem(par, fixptfn, objfn, control={"maxiter": 1000})
 ```
 
-The public controls mirror the R implementation: `maxiter`, `order`, `tol`, `mon.tol`, `cycl.mon.tol`, `kappa`, `alpha`, `resid.tol`, `convtype`, and `intermed`.
+The controls and the result keys are the R names with each dot replaced by an underscore. The controls are `maxiter`, `order`, `tol`, `mon_tol`, `cycl_mon_tol`, `kappa`, `alpha`, `resid_tol`, `convtype`, and `intermed`.
 
 ## Development
 

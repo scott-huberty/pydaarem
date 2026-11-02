@@ -121,14 +121,14 @@ control = {
     "maxiter": numiter,
     "order": 10,
     "tol": 0,
-    "mon.tol": 0.05,
+    "mon_tol": 0.05,
     "kappa": 20,
     "alpha": 1.2,
 }
 start = time.perf_counter()
 fit = daarem(x0, daarem_update, daarem_objective, L, e, control=control)
 x_daarem = project_iterate(fit["par"])
-daarem_values = fit["objfn.track"][1:]
+daarem_values = fit["objfn_track"][1:]
 print(f"Computation took {time.perf_counter() - start:.2f} seconds.")
 print(f"Log-likelihood at the DAAREM estimate is {mixobjective(x_daarem, L, e):.12f}.")
 
