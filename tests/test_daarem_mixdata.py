@@ -91,7 +91,7 @@ def test_daarem_matches_r_mixdata_example():
             "maxiter": 200,
             "order": 10,
             "tol": 0,
-            "mon.tol": 0.05,
+            "mon_tol": 0.05,
             "kappa": 20,
             "alpha": 1.2,
         },
@@ -102,4 +102,4 @@ def test_daarem_matches_r_mixdata_example():
     assert got["fpevals"] == ref["fpevals"]
     assert got["objfevals"] == ref["objfevals"]
     assert_allclose(project_iterate(got["par"]), ref["par"], rtol=0, atol=1e-10)
-    assert_allclose(got["objfn.track"][1:], ref["value"], rtol=0, atol=1e-8)
+    assert_allclose(got["objfn_track"][1:], ref["value"], rtol=0, atol=1e-8)

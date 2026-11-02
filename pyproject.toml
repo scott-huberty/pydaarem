@@ -27,6 +27,12 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Mathematics",
 ]
 
+[project.urls]
+Homepage = "https://github.com/scott-huberty/pydaarem"
+Documentation = "https://scott-huberty.github.io/pydaarem/"
+Source = "https://github.com/scott-huberty/pydaarem"
+Issues = "https://github.com/scott-huberty/pydaarem/issues"
+
 [project.optional-dependencies]
 datasets = [
     "pooch>=1.8",

@@ -12,11 +12,11 @@ _CONTROL_DEFAULTS = {
     "maxiter": 2000,
     "order": 5,
     "tol": 1.0e-8,
-    "mon.tol": 0.01,
-    "cycl.mon.tol": 0.0,
+    "mon_tol": 0.01,
+    "cycl_mon_tol": 0.0,
     "kappa": 25,
     "alpha": 1.2,
-    "resid.tol": 0.95,
+    "resid_tol": 0.95,
     "convtype": "param",
     "intermed": False,
 }
@@ -51,15 +51,15 @@ def daarem(par, fixptfn, objfn=None, *args, control=None, **kwargs):
         the observed-data log-likelihood. Supplying ``objfn`` is optional but
         preferable because it enables monotonicity control. If ``None`` is
         passed, DAAREM uses the residual-norm acceptance rule from the R
-        implementation's no-objective path; ``value.objfn``, ``objfevals``,
-        and ``objfn.track`` are returned as ``None``, and ``residuals``
+        implementation's no-objective path; ``value_objfn``, ``objfevals``,
+        and ``objfn_track`` are returned as ``None``, and ``residuals``
         contains the recorded residual norms.
     *args
         Additional positional arguments passed to both ``fixptfn`` and
         ``objfn``.
     control : dict, optional
-        Algorithm controls. The accepted keys mirror the R implementation;
-        no other keys are allowed.
+        Algorithm controls. The accepted keys are the R control names with
+        each dot replaced by an underscore. No other keys are allowed.
 
         ``maxiter`` : int, default=2000
             Maximum number of iterations or fixed-point evaluations, following
@@ -71,11 +71,11 @@ def daarem(par, fixptfn, objfn=None, *args, control=None, **kwargs):
             Convergence tolerance. With ``convtype="param"``, iteration stops
             when ``||G(x[k]) - x[k]|| < tol``. With ``convtype="objfn"``,
             iteration stops when ``abs(L(x[k + 1]) - L(x[k])) < tol``.
-        ``mon.tol`` : float, default=0.01
+        ``mon_tol`` : float, default=0.01
             Nonnegative tolerance for objective monotonicity. With an
             objective function, an accelerated proposal is rejected when
-            ``L(x[k + 1]) < L(x[k]) - mon.tol``.
-        ``cycl.mon.tol`` : float, default=0.0
+            ``L(x[k + 1]) < L(x[k]) - mon_tol``.
+        ``cycl_mon_tol`` : float, default=0.0
             Nonnegative tolerance for the cycle-level monotonicity check at
             restart boundaries.
         ``kappa`` : float, default=25
@@ -84,14 +84,14 @@ def daarem(par, fixptfn, objfn=None, *args, control=None, **kwargs):
         ``alpha`` : float, default=1.2
             Parameter greater than one controlling the initial relative damping
             factor and its rate of relaxation.
-        ``resid.tol`` : float, default=0.95
+        ``resid_tol`` : float, default=0.95
             Residual-change tolerance used when ``objfn`` is not supplied.
             A proposed accelerated step is accepted when its residual norm is
-            at most the previous residual norm times ``1 + resid.tol**k``.
+            at most the previous residual norm times ``1 + resid_tol**k``.
         ``convtype`` : {"param", "objfn"}, default="param"
             Convergence criterion used when ``objfn`` is supplied.
         ``intermed`` : bool, default=False
-            If true, return intermediate iterates in ``p.intermed``. With an
+            If true, return intermediate iterates in ``p_intermed``. With an
             objective function, the first column is the objective value and the
             remaining columns are parameters.
     **kwargs
@@ -100,14 +100,15 @@ def daarem(par, fixptfn, objfn=None, *args, control=None, **kwargs):
     Returns
     -------
     dict
-        Dictionary with keys matching the R implementation.
+        Dictionary with the keys of the R result, with each dot replaced by
+        an underscore.
 
         ``par`` : array
             Final parameter vector.
         ``fpevals`` : int
             Number of fixed-point function evaluations or iterations, following
             the R implementation's accounting.
-        ``value.objfn`` : float or None
+        ``value_objfn`` : float or None
             Objective function value at termination, or ``None`` when no
             objective function is supplied.
         ``objfevals`` : int or None
@@ -115,13 +116,13 @@ def daarem(par, fixptfn, objfn=None, *args, control=None, **kwargs):
             objective function is supplied.
         ``convergence`` : bool
             True if the algorithm converged before reaching ``maxiter``.
-        ``objfn.track`` : array or None
+        ``objfn_track`` : array or None
             Objective values recorded during iteration, or ``None`` when no
             objective function is supplied.
         ``residuals`` : array, optional
             Residual norms recorded during iteration. Returned only when
             ``objfn`` is not supplied.
-        ``p.intermed`` : array or None
+        ``p_intermed`` : array or None
             Intermediate iterates when ``intermed`` is true, otherwise ``None``.
 
         The arrays have the namespace and the device of ``par``, and the
@@ -187,7 +188,7 @@ def daarem(par, fixptfn, objfn=None, *args, control=None, **kwargs):
             fixptfn=fixptfn,
             maxiter=int(opts["maxiter"]),
             tol=float(opts["tol"]),
-            resid_tol=float(opts["resid.tol"]),
+            resid_tol=float(opts["resid_tol"]),
             a1=float(opts["alpha"]),
             kappa=float(opts["kappa"]),
             nlag=nlag,
@@ -202,8 +203,8 @@ def daarem(par, fixptfn, objfn=None, *args, control=None, **kwargs):
             objfn=objfn,
             maxiter=int(opts["maxiter"]),
             tol=float(opts["tol"]),
-            mon_tol=float(opts["mon.tol"]),
-            cycl_mon_tol=float(opts["cycl.mon.tol"]),
+            mon_tol=float(opts["mon_tol"]),
+            cycl_mon_tol=float(opts["cycl_mon_tol"]),
             a1=float(opts["alpha"]),
             kappa=float(opts["kappa"]),
             nlag=nlag,
@@ -487,11 +488,11 @@ def _daarem_base_objfn(
     return {
         "par": xnew,
         "fpevals": k,
-        "value.objfn": value_obj,
+        "value_objfn": value_obj,
         "objfevals": obj_evals,
         "convergence": conv,
-        "objfn.track": _drop_nan(obj_funvals, like=xnew),
-        "p.intermed": None if p_inter is None else _stack_rows(p_inter),
+        "objfn_track": _drop_nan(obj_funvals, like=xnew),
+        "p_intermed": None if p_inter is None else _stack_rows(p_inter),
     }
 
 
@@ -588,10 +589,10 @@ def _daarem_base_noobjfn(
     return {
         "par": xnew,
         "fpevals": fp_evals,
-        "value.objfn": None,
+        "value_objfn": None,
         "objfevals": None,
         "convergence": conv,
-        "objfn.track": None,
+        "objfn_track": None,
         "residuals": _drop_nan(resid_vals, like=xnew),
-        "p.intermed": None if p_inter is None else _stack_rows(p_inter),
+        "p_intermed": None if p_inter is None else _stack_rows(p_inter),
     }

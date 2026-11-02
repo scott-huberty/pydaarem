@@ -8362,7 +8362,7 @@ packages:
 - pypi: ./
   name: pydaarem
   version: 0.1.0
-  sha256: 4c966b6390d1a2234f3956c8ff93bca959976afa5e0805932b48d15237e3af22
+  sha256: e5293e5b56c8e3bf5b92093d80d688b384a8006bc177ee153c899013bce1e93e
   requires_dist:
   - array-api-compat>=1.12
   - numpy>=1.23
