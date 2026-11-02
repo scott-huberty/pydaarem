@@ -6,7 +6,6 @@ import warnings
 
 import numpy as np
 
-
 _CONTROL_DEFAULTS = {
     "maxiter": 2000,
     "order": 5,
@@ -94,7 +93,7 @@ def daarem(par, fixptfn, objfn=None, *args, control=None, **kwargs):
 
     Returns
     -------
-    result : dict
+    dict
         Dictionary with keys matching the R implementation.
 
         ``par`` : ndarray
@@ -203,7 +202,9 @@ def daarem(par, fixptfn, objfn=None, *args, control=None, **kwargs):
 
 
 def _call_vector(fn, x, args, kwargs):
-    return np.asarray(fn(np.asarray(x, dtype=float), *args, **kwargs), dtype=float).reshape(-1)
+    return np.asarray(
+        fn(np.asarray(x, dtype=float), *args, **kwargs), dtype=float
+    ).reshape(-1)
 
 
 def _call_scalar(fn, x, args, kwargs):
@@ -269,10 +270,7 @@ def _damping_find(
         phi_der = -float(np.sum(uy_sq * d_prime)) / s_norm
         phi_ratio = phi_val / phi_der
 
-        if (
-            s_norm <= u_stop * betahat_ls_norm
-            and s_norm >= l_stop * betahat_ls_norm
-        ):
+        if s_norm <= u_stop * betahat_ls_norm and s_norm >= l_stop * betahat_ls_norm:
             break
 
         uu = uu if phi_val >= 0 else lambda_ridge
@@ -342,7 +340,9 @@ def _daarem_base_objfn(
     r_penalty = 0.0
     conv = True
     ell_star = obj_funvals[1]
-    p_inter = [np.r_[obj_funvals[0], par], np.r_[obj_funvals[1], xnew]] if intermed else None
+    p_inter = (
+        [np.r_[obj_funvals[0], par], np.r_[obj_funvals[1], xnew]] if intermed else None
+    )
 
     while k < maxiter:
         count += 1
@@ -377,7 +377,11 @@ def _daarem_base_objfn(
             proposal_ok = False
         obj_evals += 1
 
-        if proposal_ok and not np.isnan(obj_funvals[k]) and not np.isnan(new_objective_val):
+        if (
+            proposal_ok
+            and not np.isnan(obj_funvals[k])
+            and not np.isnan(new_objective_val)
+        ):
             if new_objective_val >= obj_funvals[k] - mon_tol:
                 obj_funvals[k + 1] = new_objective_val
                 fold = fnew

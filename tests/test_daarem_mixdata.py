@@ -1,12 +1,9 @@
 import numpy as np
+import pytest
 from numpy.testing import assert_allclose
+from pydaarem import daarem
 from rpy2 import robjects
 from rpy2.robjects import numpy2ri
-
-from pydaarem import daarem
-
-import pytest
-
 
 DATA_PATH = "/Users/scotterik/amica_test_data/daarem/mixdata.RData"
 R_ROOT = "/Users/scotterik/devel/projects/amica-python"
@@ -76,6 +73,7 @@ def r_mixdaarem_reference(numiter=200, order=10):
             "objfevals": int(ref.rx2("objfevals")[0]),
             "convergence": bool(ref.rx2("convergence")[0]),
         }
+
 
 @pytest.mark.xfail(reason="Divergence between python and R version")
 def test_daarem_matches_r_mixdata_example():

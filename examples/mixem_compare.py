@@ -16,11 +16,9 @@ import os
 from pathlib import Path
 
 import numpy as np
+from pydaarem import daarem
 from rpy2 import robjects
 from rpy2.robjects import numpy2ri
-
-from pydaarem import daarem
-
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DATA_PATH = Path("/Users/scotterik/amica_test_data/daarem/mixdata.RData")
@@ -30,7 +28,7 @@ OUTPUT_DIR = Path(__file__).resolve().parent / "output"
 MPL_CONFIG_DIR = OUTPUT_DIR / "matplotlib"
 os.environ.setdefault("MPLCONFIGDIR", str(MPL_CONFIG_DIR))
 
-import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt  # noqa: E402  (needs MPLCONFIGDIR set first)
 
 
 def load_mixdata():
@@ -154,9 +152,24 @@ def plot_tracks(path, em_values, py_values, r_values, best_value):
     it_py = np.arange(1, len(py_values) + 1)
     it_r = np.arange(1, len(r_values) + 1)
 
-    ax.plot(it_em, best_value - em_values, label="EM", color="darkorange", linewidth=1.8)
-    ax.plot(it_py, best_value - py_values, label="pydaarem", color="dodgerblue", linewidth=1.8)
-    ax.plot(it_r, best_value - r_values, label="R DAAREM", color="black", linestyle="--", linewidth=1.4)
+    ax.plot(
+        it_em, best_value - em_values, label="EM", color="darkorange", linewidth=1.8
+    )
+    ax.plot(
+        it_py,
+        best_value - py_values,
+        label="pydaarem",
+        color="dodgerblue",
+        linewidth=1.8,
+    )
+    ax.plot(
+        it_r,
+        best_value - r_values,
+        label="R DAAREM",
+        color="black",
+        linestyle="--",
+        linewidth=1.4,
+    )
     ax.set_yscale("log")
     ax.set_xlabel("Iteration")
     ax.set_ylabel("Distance from best objective")
@@ -200,6 +213,10 @@ def main():
         best_value,
     )
 
+    max_x_diff = np.max(np.abs(py_fit["x"] - r_fit["x"]))
+    py_raw = py_fit["raw"]
+    py_counts = f"{py_raw['fpevals']} / {py_raw['objfevals']} / {py_raw['convergence']}"
+    r_counts = f"{r_fit['fpevals']} / {r_fit['objfevals']} / {r_fit['convergence']}"
     summary = [
         f"Loaded L with shape {n} x {m}",
         f"Best/reference objective from x in RData: {best_value:.12f}",
@@ -207,9 +224,9 @@ def main():
         f"pydaarem final objective: {py_final:.12f}",
         f"R DAAREM final objective: {r_final:.12f}",
         f"pydaarem - R final objective: {py_final - r_final:.12e}",
-        f"max abs x difference pydaarem vs R: {np.max(np.abs(py_fit['x'] - r_fit['x'])):.12e}",
-        f"pydaarem fpevals/objfevals/convergence: {py_fit['raw']['fpevals']} / {py_fit['raw']['objfevals']} / {py_fit['raw']['convergence']}",
-        f"R fpevals/objfevals/convergence: {r_fit['fpevals']} / {r_fit['objfevals']} / {r_fit['convergence']}",
+        f"max abs x difference pydaarem vs R: {max_x_diff:.12e}",
+        f"pydaarem fpevals/objfevals/convergence: {py_counts}",
+        f"R fpevals/objfevals/convergence: {r_counts}",
         f"Wrote {OUTPUT_DIR / 'mixem_objective_tracks.csv'}",
         f"Wrote {OUTPUT_DIR / 'mixem_objective_comparison.png'}",
     ]
