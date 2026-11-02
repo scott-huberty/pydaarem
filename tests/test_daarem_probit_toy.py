@@ -141,9 +141,8 @@ BOTH = (True, False)
 TIGHT = {"rtol": 1e-9, "atol": 1e-10}
 # For runs that amplify rounding error. Counts and flags still match exactly.
 # Across OpenBLAS kernels (OPENBLAS_CORETYPE) the largest relative difference in
-# these cases is 1.5e-6, so rtol has a margin of about 6. The final residual
-# norms are rounding noise near tol, so atol does not depend on the BLAS build.
-LOOSE = {"rtol": 1e-5, "atol": 1e-7}
+# these cases is 2e-7, so rtol has a margin of 50.
+LOOSE = {"rtol": 1e-5, "atol": 1e-10}
 BIG = {"n": 2000, "npars": 20, "seed": 2}
 # (id, probit_data kwargs, control, objfn paths to run, float tolerances)
 CASES = [
@@ -171,13 +170,18 @@ CASES = [
         LOOSE,
     ),
     ("noconv", {}, {"maxiter": 5}, BOTH, TIGHT),
-    # With 10 nearly collinear lag columns the ridge solve amplifies rounding
-    # error, so the iterates agree to ~1e-7 relative while all counts match.
-    # The no-objfn path checks tol only at the end of each cycle of 10. With
-    # tol=1e-8 the last residual is 9e-9, so the BLAS kernel decides whether
-    # one more cycle runs. With tol=1e-7 the last residual is 11 times smaller
-    # than tol and the residual one cycle earlier is 3 times larger.
-    ("order10", BIG, {"order": 10, "tol": 1e-7}, BOTH, LOOSE),
+    # Covers nlag above 3. As the iterates converge, the lag columns align and
+    # the Anderson least-squares problem becomes ill-conditioned (condition
+    # number 1e8 for order 10 on BIG), so rounding decides discrete steps.
+    # In 30 fixed-point evaluations the condition number stays below 5e4 and
+    # the history is full (8 columns) for 3 cycles.
+    (
+        "order8",
+        {"n": 200, "npars": 16, "seed": 2},
+        {"order": 8, "maxiter": 30, "intermed": True},
+        BOTH,
+        LOOSE,
+    ),
     ("damping", {}, {"kappa": 10, "alpha": 1.5}, BOTH, TIGHT),
     ("resid-tol", {}, {"resid.tol": 0.3}, (False,), TIGHT),
 ]

@@ -18,11 +18,12 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
         openblas-coretype: [""]
         # OpenBLAS selects its kernel from the runner CPU, and the kernel changes
-        # rounding. Pin two kernels that differ from the usual runner kernel, so
-        # that tests near a decision boundary fail on every run.
+        # rounding. Pin two more kernels, so that a test near a decision
+        # boundary fails on every run and not only on some runner CPUs. These
+        # kernels use only SSE instructions, so they run on every x86-64 CPU.
         include:
           - os: ubuntu-latest
-            openblas-coretype: SandyBridge
+            openblas-coretype: Nehalem
           - os: ubuntu-latest
             openblas-coretype: Prescott
     runs-on: ${{ matrix.os }}
