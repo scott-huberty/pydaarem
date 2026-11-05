@@ -3,8 +3,8 @@ Accelerate coordinate ascent updates for linear regression
 ===========================================================
 
 This example compares ordinary coordinate ascent with DAAREM acceleration
-for a ridge regression model. It is the Python version of the corresponding
-`linreg analysis <https://stephenslab.github.io/daarem/linreg.html>`_.
+for a ridge regression model. It is the Python version of this corresponding
+`R daarem demo <https://stephenslab.github.io/daarem/linreg.html>`_.
 """
 
 # %%
