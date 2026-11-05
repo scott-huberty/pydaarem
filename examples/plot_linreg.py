@@ -28,7 +28,7 @@ s0 = 1 / se
 
 def simulate_predictors_decaying_corr(n, p, s=0.5, rng=None):
     """Draw predictors with correlations that decay by distance."""
-    S = s**abs(np.subtract.outer(np.arange(1, p + 1), np.arange(1, p + 1)))
+    S = s ** abs(np.subtract.outer(np.arange(1, p + 1), np.arange(1, p + 1)))
     if rng is None:
         rng = np.random.default_rng()
     return rng.multivariate_normal(np.zeros(p), S, n)
@@ -37,7 +37,7 @@ def simulate_predictors_decaying_corr(n, p, s=0.5, rng=None):
 def ridge_objective(X, y, b, s0):
     """Compute the log-posterior objective up to a constant."""
     residual = y - X @ b
-    return -(np.linalg.norm(residual)**2 + np.linalg.norm(b)**2 / s0)
+    return -(np.linalg.norm(residual) ** 2 + np.linalg.norm(b) ** 2 / s0)
 
 
 def ridge_update(X, y, b, s0):
@@ -121,7 +121,7 @@ def daarridge(X, y, b0, s0, numiter=100, order=10):
 # -------------------
 
 X = simulate_predictors_decaying_corr(n, p, s=0.5, rng=rng)
-X = (X - X.mean(axis=0))
+X = X - X.mean(axis=0)
 i = rng.choice(p, na, replace=False)
 b = np.zeros(p)
 b[i] = rng.normal(size=na)
